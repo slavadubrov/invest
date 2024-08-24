@@ -35,40 +35,41 @@ def calculate_cumulative_value_with_contributions_and_rebalancing(
         - The cumulative value of the portfolio over time.
         - The total amount invested over time.
     """
-    cumulative_value = []
-    total_invested = []
-    total_amount_invested = 0.0
-
-    portfolio_value = (monthly_investment_amount * initial_weights).copy()
-
-    # Initialize the cumulative portfolio value
-    cumulative_portfolio_value = portfolio_value.sum()
-
-    # Resample the portfolio returns based on the specified frequency
     portfolio_returns_resampled = resample_returns(portfolio_returns, frequency)
-    periods = portfolio_returns_resampled.index
+    rebalance_periods = determine_rebalance_periods(
+        portfolio_returns_resampled.index, rebalance_frequency
+    )
+    investment_schedule = create_investment_schedule(
+        portfolio_returns_resampled.index, monthly_investment_amount, frequency
+    )
 
-    # Initialize the investment schedule with zero contributions
-    investment_schedule = pd.Series(0, index=periods)
+    return calculate_portfolio_value(
+        portfolio_returns_resampled,
+        initial_weights,
+        investment_schedule,
+        rebalance_periods,
+    )
 
-    # Determine the rebalance periods
+
+def determine_rebalance_periods(
+    periods: pd.Index, rebalance_frequency: str | None
+) -> pd.Index:
     if rebalance_frequency:
         if rebalance_frequency == "quarterly":
-            rebalance_periods = pd.date_range(
-                start=periods.min(), end=periods.max(), freq="Q"
-            )
+            return pd.date_range(start=periods.min(), end=periods.max(), freq="Q")
         elif rebalance_frequency == "yearly":
-            rebalance_periods = pd.date_range(
-                start=periods.min(), end=periods.max(), freq="YE"
-            )
+            return pd.date_range(start=periods.min(), end=periods.max(), freq="YE")
         else:
             raise ValueError(
                 "Invalid rebalance_frequency. Use 'quarterly' or 'yearly'."
             )
-    else:
-        rebalance_periods = periods  # No rebalancing
+    return periods  # No rebalancing
 
-    # Set the investment schedule based on the frequency
+
+def create_investment_schedule(
+    periods: pd.Index, monthly_investment_amount: float, frequency: str
+) -> pd.Series:
+    investment_schedule = pd.Series(0, index=periods)
     if frequency == "weekly":
         investment_schedule.loc[periods] = monthly_investment_amount / 4
     elif frequency == "monthly":
@@ -77,9 +78,21 @@ def calculate_cumulative_value_with_contributions_and_rebalancing(
         investment_schedule.loc[periods] = monthly_investment_amount * 3
     else:
         raise ValueError("Invalid frequency. Use 'weekly', 'monthly', or 'quarterly'.")
+    return investment_schedule
 
-    # Calculate cumulative value and apply rebalancing
-    for period in periods:
+
+def calculate_portfolio_value(
+    portfolio_returns_resampled: pd.DataFrame,
+    initial_weights: pd.Series,
+    investment_schedule: pd.Series,
+    rebalance_periods: pd.Index,
+) -> tuple[pd.Series, pd.Series]:
+    cumulative_value = []
+    total_invested = []
+    total_amount_invested = 0.0
+    portfolio_value = (investment_schedule.iloc[0] * initial_weights).copy()
+
+    for period in portfolio_returns_resampled.index:
         total_amount_invested += investment_schedule.loc[period]
         total_invested.append(total_amount_invested)
 
@@ -93,12 +106,11 @@ def calculate_cumulative_value_with_contributions_and_rebalancing(
         cumulative_value.append(cumulative_portfolio_value)
 
         # Rebalance portfolio if it's a rebalance period
-        if rebalance_frequency and period in rebalance_periods:
-            cumulative_portfolio_value = portfolio_value.sum()
+        if period in rebalance_periods:
             portfolio_value = (
                 cumulative_portfolio_value * initial_weights
             )  # Rebalance to target weights
 
-    return pd.Series(cumulative_value, index=periods), pd.Series(
-        total_invested, index=periods
-    )
+    return pd.Series(
+        cumulative_value, index=portfolio_returns_resampled.index
+    ), pd.Series(total_invested, index=portfolio_returns_resampled.index)
