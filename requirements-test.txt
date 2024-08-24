@@ -1,0 +1,8 @@
+pytest
+flake8
+pylint
+mypy
+black
+isort
+autoflake
+ruff
