@@ -2,6 +2,8 @@
 
 import pandas as pd
 
+from invest.investment_schedule_strategy import InvestmentFrequency
+
 
 def _get_closest_available_dates(
     dates: pd.DatetimeIndex, target_days: list[int]
@@ -66,13 +68,15 @@ def _custom_resample_on_days(
     return pd.Series(dict(resampled_returns))
 
 
-def resample_returns(portfolio_returns: pd.DataFrame, frequency: str) -> pd.DataFrame:
+def resample_returns(
+    portfolio_returns: pd.DataFrame, frequency: InvestmentFrequency
+) -> pd.DataFrame:
     """
     Resample portfolio returns based on the specified frequency.
 
     Args:
         portfolio_returns (pd.DataFrame): A DataFrame of portfolio returns with a datetime index.
-        frequency (str): The frequency to resample the returns. Options are 'weekly', 'monthly', or 'quarterly'.
+        frequency (InvestmentFrequency): The frequency to resample the returns. Options are InvestmentFrequency.WEEKLY, InvestmentFrequency.MONTHLY, or InvestmentFrequency.QUARTERLY.
 
     Returns:
         pd.DataFrame: A DataFrame of resampled returns.
@@ -82,11 +86,13 @@ def resample_returns(portfolio_returns: pd.DataFrame, frequency: str) -> pd.Data
     """
     contribution_days = [2, 9, 16, 23]
 
-    if frequency == "weekly":
+    if frequency == InvestmentFrequency.WEEKLY:
         return _custom_resample_on_days(portfolio_returns, contribution_days)
-    elif frequency == "monthly":
+    elif frequency == InvestmentFrequency.MONTHLY:
         return portfolio_returns.resample("ME").apply(lambda x: (1 + x).prod() - 1)
-    elif frequency == "quarterly":
+    elif frequency == InvestmentFrequency.QUARTERLY:
         return portfolio_returns.resample("Q").apply(lambda x: (1 + x).prod() - 1)
     else:
-        raise ValueError("Invalid frequency. Use 'weekly', 'monthly', or 'quarterly'.")
+        raise ValueError(
+            "Invalid frequency. Use an instance of InvestmentFrequency enum."
+        )
