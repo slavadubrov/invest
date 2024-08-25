@@ -69,7 +69,9 @@ def _custom_resample_on_days(
 
 
 def resample_returns(
-    portfolio_returns: pd.DataFrame, frequency: InvestmentFrequency
+    portfolio_returns: pd.DataFrame,
+    frequency: InvestmentFrequency,
+    contribution_days: list[int] | None = None,
 ) -> pd.DataFrame:
     """
     Resample portfolio returns based on the specified frequency.
@@ -84,7 +86,9 @@ def resample_returns(
     Raises:
         ValueError: If an invalid frequency is provided.
     """
-    contribution_days = [2, 9, 16, 23]
+    contribution_days = (
+        [2, 9, 16, 23] if contribution_days is None else contribution_days
+    )
 
     if frequency == InvestmentFrequency.WEEKLY:
         return _custom_resample_on_days(portfolio_returns, contribution_days)

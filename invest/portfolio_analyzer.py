@@ -3,7 +3,6 @@ from dataclasses import dataclass
 import pandas as pd
 from matplotlib import pyplot as plt
 
-from invest.calculation import calculate_portfolio_value
 from invest.investment_schedule_strategy import (
     InvestmentFrequency,
     create_investment_schedule,
@@ -33,6 +32,44 @@ class PortfolioAnalyzer:
     def calculate_portfolio_returns(self):
         return self.daily_returns.dot(self.weights)
 
+    def calculate_portfolio_value(
+        self,
+        portfolio_returns_resampled: pd.DataFrame,
+        initial_weights: pd.Series,
+        investment_schedule: pd.Series,
+        rebalance_periods: pd.Index,
+    ) -> tuple[pd.Series, pd.Series]:
+        """
+        Calculate the portfolio value over time, considering returns, contributions, and rebalancing.
+        """
+        cumulative_value = []
+        total_invested = []
+        total_amount_invested = 0.0
+        portfolio_value = (investment_schedule.iloc[0] * initial_weights).copy()
+
+        for period in portfolio_returns_resampled.index:
+            total_amount_invested += investment_schedule.loc[period]
+            total_invested.append(total_amount_invested)
+
+            # Apply returns to the portfolio value
+            portfolio_value *= 1 + portfolio_returns_resampled.loc[period]
+
+            # Add new investment
+            portfolio_value += investment_schedule.loc[period] * initial_weights
+
+            cumulative_portfolio_value = portfolio_value.sum()
+            cumulative_value.append(cumulative_portfolio_value)
+
+            # Rebalance portfolio if it's a rebalance period
+            if period in rebalance_periods:
+                portfolio_value = (
+                    cumulative_portfolio_value * initial_weights
+                )  # Rebalance to target weights
+
+        return pd.Series(
+            cumulative_value, index=portfolio_returns_resampled.index
+        ), pd.Series(total_invested, index=portfolio_returns_resampled.index)
+
     def invest_periodically(self):
         self.portfolio_returns = self.calculate_portfolio_returns()
         portfolio_returns_resampled = resample_returns(
@@ -46,7 +83,7 @@ class PortfolioAnalyzer:
             self.invest_strategy.investment_period_amount,
             self.invest_strategy.investment_frequency,
         )
-        cumulative_value, total_invested = calculate_portfolio_value(
+        cumulative_value, total_invested = self.calculate_portfolio_value(
             portfolio_returns_resampled,
             self.weights,
             investment_schedule,
